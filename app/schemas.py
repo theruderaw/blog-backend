@@ -15,6 +15,7 @@ class CreateArticle(RequestModel):
     body : list[Any]
     
 class EditArticle(RequestModel):
+    article_id : str
     title : str | None = None
     slug : str | None = None
     status : str | None = None

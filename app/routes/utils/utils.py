@@ -7,6 +7,22 @@ router = APIRouter(
     tags=["Utils"]
 )
 
+@router.get("/slug")
+def check_slug(
+    slug : str = Query(...)
+):
+    q = """
+        SELECT EXISTS(
+            SELECT 1
+            FROM articles
+            WHERE slug = %s
+        )
+        """
+
+    with get_db() as cursor:
+        cursor.execute(q,[slug])
+        return cursor.fetchone()
+
 @router.get("/username")
 def get_username(
     user_id: UUID = Query(...)
