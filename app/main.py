@@ -7,14 +7,12 @@ from app.routes.articles import articles
 from app.routes.utils import utils
 from app.routes.messages import messages
 
-FRONTEND_URL = "https://blog-frontend-swart-one.vercel.app/"
-
 app = FastAPI(title="Blog Backend API")
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[FRONTEND_URL],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
