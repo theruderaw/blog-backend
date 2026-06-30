@@ -1,4 +1,10 @@
+# Ignore the virtual environment
 venv/
+.venv/
+
 .env
-.fastapicloud
-__pyache__
+
+# Ignore Python bytecode
+**/__pycache__/
+*.py[cod]
+*$py.class
