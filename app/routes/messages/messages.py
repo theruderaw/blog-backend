@@ -1,13 +1,15 @@
 from fastapi import APIRouter
 from app.schemas import MessageModel
 from app.database import get_db
+# Import your response structures
+from app.schemas import StandardResponse, ResponseMeta
 
 router = APIRouter(
     prefix='/message',
     tags=['Message']
 )
 
-@router.post("/")
+@router.post("/", response_model=StandardResponse)
 def send_message(
     payload : MessageModel
 ):
@@ -18,6 +20,7 @@ def send_message(
         receiver_id
     ) VALUES (%s,%s,%s,%s)
     RETURNING *"""
+    
     params = (
         payload.sender_name,
         payload.sender_email,
@@ -26,5 +29,11 @@ def send_message(
     )
 
     with get_db() as cursor:
-        cursor.execute(q,params)
-        return cursor.fetchall()
+        cursor.execute(q, params)
+        # Using fetchall() since your query uses it, which returns a list of rows
+        inserted_messages = cursor.fetchall()
+        
+        return StandardResponse(
+            meta=ResponseMeta(message="Message sent successfully"),
+            data=inserted_messages
+        )   

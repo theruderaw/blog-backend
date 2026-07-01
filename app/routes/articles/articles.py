@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, status
 from app.database import get_db
 from app.schemas import CreateArticle, EditArticle
+# Import your newly created schemas here (adjust path as needed)
+from app.schemas import StandardResponse, ResponseMeta 
 import json
 
 router = APIRouter(
@@ -9,40 +11,50 @@ router = APIRouter(
 )
 
 
-@router.get("/")
+@router.get("/", response_model=StandardResponse)
 def read_articles(
     page_no: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=100),
+    search: str = Query(default=""),
+    detailed: bool = Query(default=True, description="True returns full body/status, False returns lightweight summary")
 ):
-    q = """
+    cleaned_search = search.strip()
+
+    q = f"""
         SELECT
-            a.id,
-            a.title,
-            a.slug,
-            a.body,
-            a.status,
-            a.author_id,
-            a.created_at,
-            p.username as posted_by
+            {"a.id, a.title, a.slug, a.body, a.status, a.author_id, a.created_at, p.username as posted_by" if detailed else "a.id, a.author_id, a.title, a.slug, a.created_at, p.username as posted_by"}
         FROM articles a
         JOIN profiles p 
             ON p.id = a.author_id 
         WHERE
             a.status = 'published'
+        AND 
+            a.slug LIKE %s
         ORDER BY created_at DESC
         LIMIT %s OFFSET %s
     """
 
     params = (
+        f"%{cleaned_search}%",
         page_size,
         (page_no - 1) * page_size
     )
 
     with get_db() as cursor:
         cursor.execute(q, params)
-        return cursor.fetchall()
+        articles = cursor.fetchall()
+        
+        return StandardResponse(
+            meta=ResponseMeta(
+                message="Articles retrieved successfully",
+                count=len(articles),
+                page_no=page_no
+            ),
+            data=articles
+        )
 
-@router.get("/user")
+
+@router.get("/user", response_model=StandardResponse)
 def read_article_by_user(
     page_no: int = Query(default=1, ge=1),
     page_size: int = Query(default=8, ge=1, le=100),
@@ -77,10 +89,19 @@ def read_article_by_user(
 
     with get_db() as cursor:
         cursor.execute(q, params)
-        return cursor.fetchall()
+        articles = cursor.fetchall()
+        
+        return StandardResponse(
+            meta=ResponseMeta(
+                message="User articles retrieved successfully",
+                count=len(articles),
+                page_no=page_no
+            ),
+            data=articles
+        )
 
 
-@router.get("/read")
+@router.get("/read", response_model=StandardResponse)
 def read_article_by_slug(slug: str):
     update_q = """
         UPDATE articles 
@@ -110,11 +131,17 @@ def read_article_by_slug(slug: str):
         
         cursor.execute(select_q, (slug,))
         article = cursor.fetchone()
+        
         if not article:
-            raise HTTPException(status_code=404, detail="Article not found")
-        return article
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
+            
+        return StandardResponse(
+            meta=ResponseMeta(message="Article retrieved successfully"),
+            data=article
+        )
 
-@router.post("/")
+
+@router.post("/", response_model=StandardResponse)
 def create_article(payload: CreateArticle):
     q = """
         INSERT INTO articles (
@@ -138,10 +165,15 @@ def create_article(payload: CreateArticle):
 
     with get_db() as cursor:
         cursor.execute(q, params)
-        return cursor.fetchone()
+        new_article = cursor.fetchone()
+        
+        return StandardResponse(
+            meta=ResponseMeta(message="Article created successfully"),
+            data=new_article
+        )
 
 
-@router.patch("/")
+@router.patch("/", response_model=StandardResponse)
 def edit_article(payload: EditArticle):
     q = """
         UPDATE articles
@@ -164,16 +196,24 @@ def edit_article(payload: EditArticle):
 
     with get_db() as cursor:
         cursor.execute(q, params)
-        return cursor.fetchone()
+        updated_article = cursor.fetchone()
+        
+        if not updated_article:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found to update")
+            
+        return StandardResponse(
+            meta=ResponseMeta(message="Article updated successfully"),
+            data=updated_article
+        )
     
 
-@router.delete("/")
+@router.delete("/", response_model=StandardResponse)
 def delete_article(article_id: str = Query(..., description="The UUID of the article to delete")):
     q = """
         UPDATE articles
         SET status = 'deleted'
         WHERE id = %s
-        RETURNING id,title,slug
+        RETURNING id, title, slug
     """
 
     with get_db() as cursor:
@@ -181,10 +221,10 @@ def delete_article(article_id: str = Query(..., description="The UUID of the art
         deleted_article = cursor.fetchone()
         
         if not deleted_article:
-            raise HTTPException(status_code=404, detail="Article not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
             
-        return {
-            "status": "success",
-            "message": "Article deleted successfully",
-            "deleted_id": deleted_article["id"]
-        }   
+        # Re-structured to strictly utilize your ResponseMeta schema
+        return StandardResponse(
+            meta=ResponseMeta(message="Article deleted successfully"),
+            data={"deleted_id": deleted_article["id"]}
+        )

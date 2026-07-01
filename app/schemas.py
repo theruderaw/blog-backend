@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel,ConfigDict
 from typing import Any
 from uuid import UUID
 
@@ -28,3 +28,14 @@ class MessageModel(UserReference):
     sender_name : str
     sender_email : str
     message_text : str
+
+class ResponseMeta(BaseModel):
+    message: str = "success"
+    count : int | None = None
+    page_no : int | None = None
+
+class StandardResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    meta : ResponseMeta
+    data : Any
